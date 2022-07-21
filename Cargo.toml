@@ -1,0 +1,11 @@
+[package]
+name = "cupio"
+version = "0.0.1"
+authors = ["alexey larionov <alxs.larionov@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+winit = "0.26"
+image = "0.24"
+ash = { version = "0.37", default-features = false, features = ["linked", "debug"] }
+ash-window = "0.10"
