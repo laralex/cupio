@@ -10,21 +10,13 @@ use std::os::raw::c_void;
 
 use ash::util::*;
 use ash::vk;
-
+use cgmath::{Vector4,Vector2,vec4,vec2};
 use cupio::*;
 
 #[derive(Clone, Debug, Copy)]
 struct Vertex {
-    pos: [f32; 4],
-    uv: [f32; 2],
-}
-
-#[derive(Clone, Debug, Copy)]
-pub struct Vector3 {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-    pub _pad: f32,
+    pos: Vector4<f32>,
+    uv: Vector2<f32>,
 }
 
 fn main() {
@@ -144,20 +136,20 @@ fn main() {
 
         let vertices = [
             Vertex {
-                pos: [-1.0, -1.0, 0.0, 1.0],
-                uv: [0.0, 0.0],
+                pos: vec4(-1.0, -1.0, 0.0, 1.0),
+                uv: vec2(0.0, 0.0),
             },
             Vertex {
-                pos: [-1.0, 1.0, 0.0, 1.0],
-                uv: [0.0, 1.0],
+                pos: vec4(-1.0, 1.0, 0.0, 1.0),
+                uv: vec2(0.0, 1.0),
             },
             Vertex {
-                pos: [1.0, 1.0, 0.0, 1.0],
-                uv: [1.0, 1.0],
+                pos: vec4(1.0, 1.0, 0.0, 1.0),
+                uv: vec2(1.0, 1.0),
             },
             Vertex {
-                pos: [1.0, -1.0, 0.0, 1.0],
-                uv: [1.0, 0.0],
+                pos: vec4(1.0, -1.0, 0.0, 1.0),
+                uv: vec2(1.0, 0.0),
             },
         ];
         let vertex_input_buffer_info = vk::BufferCreateInfo {
@@ -210,12 +202,7 @@ fn main() {
             .bind_buffer_memory(vertex_input_buffer, vertex_input_buffer_memory, 0)
             .unwrap();
 
-        let uniform_color_buffer_data = Vector3 {
-            x: 1.0,
-            y: 1.0,
-            z: 1.0,
-            _pad: 0.0,
-        };
+        let uniform_color_buffer_data = vec4(1.0_f32, 1.0, 1.0, 0.0);
         let uniform_color_buffer_info = vk::BufferCreateInfo {
             size: std::mem::size_of_val(&uniform_color_buffer_data) as u64,
             usage: vk::BufferUsageFlags::UNIFORM_BUFFER,
@@ -256,7 +243,7 @@ fn main() {
             .unwrap();
         let mut uniform_aligned_slice = Align::new(
             uniform_ptr,
-            align_of::<Vector3>() as u64,
+            align_of::<Vector4<f32>>() as u64,
             uniform_color_buffer_memory_req.size,
         );
         uniform_aligned_slice.copy_from_slice(&[uniform_color_buffer_data]);

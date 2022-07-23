@@ -1,19 +1,23 @@
+extern crate lazy_static;
+
 use ash::util::*;
 use ash::vk;
+use cgmath::{Vector4,vec4};
 use cupio::*;
 use std::default::Default;
-use std::ffi::CStr;
 use std::io::Cursor;
 use std::mem;
 use std::mem::align_of;
 
 use crate::offset_of;
 use platform::gpu::vulkan_context::{VulkanContext, find_memorytype_index, record_submit_commandbuffer};
+use platform::gpu::vulkan_shader::VulkanShader;
+use platform::gpu::VulkanDrop;
 
 #[derive(Clone, Debug, Copy)]
 struct Vertex {
-    pos: [f32; 4],
-    color: [f32; 4],
+    pos: Vector4<f32>,
+    color: Vector4<f32>,
 }
 
 fn main() {
@@ -167,16 +171,16 @@ fn main() {
 
         let vertices = [
             Vertex {
-                pos: [-1.0, 1.0, 0.0, 1.0],
-                color: [0.0, 1.0, 0.0, 1.0],
+                pos: vec4(-1.0, 1.0, 0.0, 1.0),
+                color: vec4(0.0, 1.0, 0.0, 1.0),
             },
             Vertex {
-                pos: [1.0, 1.0, 0.0, 1.0],
-                color: [0.0, 0.0, 1.0, 1.0],
+                pos: vec4(1.0, 1.0, 0.0, 1.0),
+                color: vec4(0.0, 0.0, 1.0, 1.0),
             },
             Vertex {
-                pos: [0.0, -1.0, 0.0, 1.0],
-                color: [1.0, 0.0, 0.0, 1.0],
+                pos: vec4(0.0, -1.0, 0.0, 1.0),
+                color: vec4(1.0, 0.0, 0.0, 1.0),
             },
         ];
 
@@ -200,51 +204,20 @@ fn main() {
         base.device
             .bind_buffer_memory(vertex_input_buffer, vertex_input_buffer_memory, 0)
             .unwrap();
-        let mut vertex_spv_file =
-            Cursor::new(&include_bytes!("../../shader/triangle/vert.spv")[..]);
-        let mut frag_spv_file = Cursor::new(&include_bytes!("../../shader/triangle/frag.spv")[..]);
 
-        let vertex_code =
-            read_spv(&mut vertex_spv_file).expect("Failed to read vertex shader spv file");
-        let vertex_shader_info = vk::ShaderModuleCreateInfo::builder().code(&vertex_code);
-
-        let frag_code =
-            read_spv(&mut frag_spv_file).expect("Failed to read fragment shader spv file");
-        let frag_shader_info = vk::ShaderModuleCreateInfo::builder().code(&frag_code);
-
-        let vertex_shader_module = base
-            .device
-            .create_shader_module(&vertex_shader_info, None)
-            .expect("Vertex shader module error");
-
-        let fragment_shader_module = base
-            .device
-            .create_shader_module(&frag_shader_info, None)
-            .expect("Fragment shader module error");
+        let shader = VulkanShader::builder(&base.device)
+            .with_vertex_shader(0, &mut Cursor::new(
+                &include_bytes!("../../shader/triangle/vert.spv")[..]))
+            .with_fragment_shader(1, &mut Cursor::new(
+                &include_bytes!("../../shader/triangle/frag.spv")[..]))
+            .build();
 
         let layout_create_info = vk::PipelineLayoutCreateInfo::default();
 
-        let pipeline_layout = base
-            .device
+        let pipeline_layout = base.device
             .create_pipeline_layout(&layout_create_info, None)
             .unwrap();
 
-        let shader_entry_name = CStr::from_bytes_with_nul_unchecked(b"main\0");
-        let shader_stage_create_infos = [
-            vk::PipelineShaderStageCreateInfo {
-                module: vertex_shader_module,
-                p_name: shader_entry_name.as_ptr(),
-                stage: vk::ShaderStageFlags::VERTEX,
-                ..Default::default()
-            },
-            vk::PipelineShaderStageCreateInfo {
-                s_type: vk::StructureType::PIPELINE_SHADER_STAGE_CREATE_INFO,
-                module: fragment_shader_module,
-                p_name: shader_entry_name.as_ptr(),
-                stage: vk::ShaderStageFlags::FRAGMENT,
-                ..Default::default()
-            },
-        ];
         let vertex_input_binding_descriptions = [vk::VertexInputBindingDescription {
             binding: 0,
             stride: mem::size_of::<Vertex>() as u32,
@@ -330,7 +303,7 @@ fn main() {
             vk::PipelineDynamicStateCreateInfo::builder().dynamic_states(&dynamic_state);
 
         let graphic_pipeline_info = vk::GraphicsPipelineCreateInfo::builder()
-            .stages(&shader_stage_create_infos)
+            .stages(shader.shader_stage_create_infos())
             .vertex_input_state(&vertex_input_state_info)
             .input_assembly_state(&vertex_input_assembly_state_info)
             .viewport_state(&viewport_state_info)
@@ -445,10 +418,7 @@ fn main() {
             base.device.destroy_pipeline(pipeline, None);
         }
         base.device.destroy_pipeline_layout(pipeline_layout, None);
-        base.device
-            .destroy_shader_module(vertex_shader_module, None);
-        base.device
-            .destroy_shader_module(fragment_shader_module, None);
+        shader.drop(&base.device);
         base.device.free_memory(index_buffer_memory, None);
         base.device.destroy_buffer(index_buffer, None);
         base.device.free_memory(vertex_input_buffer_memory, None);
