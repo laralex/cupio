@@ -34,6 +34,13 @@ impl VulkanShader {
    pub fn n_stages(&self) -> usize {
       self.n_stages
    }
+
+   pub fn put_into(&mut self, stage_idx: usize, info: vk::PipelineShaderStageCreateInfo) {
+      assert!(stage_idx < usize::min(MAX_SHADER_STAGES, self.n_stages+1), 
+         "Cannot leave gaps in the array of stages, use `stage_idx` at most `n_stages`");
+      self.shader_stage_create_infos[stage_idx] = info;
+      self.n_stages = usize::max(self.n_stages, stage_idx + 1);
+   }
 }
 
 impl VulkanDrop for VulkanShader {
@@ -65,10 +72,15 @@ impl<'a> VulkanShaderBuilder<'a>{
       }
    }
 
-   pub fn with_vertex_shader(mut self, stage_idx: usize, shader_spv_file: &mut Cursor<impl AsRef<[u8]>>) -> Self {
+   pub fn with_vertex_shader_file(self, stage_idx: usize, shader_spv_file: &mut Cursor<impl AsRef<[u8]>>) -> Self {
       Self::check_stage_idx(stage_idx);
       let shader_module = self.make_shader_module(shader_spv_file);
-      self.add_shader_stage_create_info(stage_idx, vk::PipelineShaderStageCreateInfo {
+      self.with_vertex_shader(stage_idx, shader_module)
+   }
+
+   pub fn with_vertex_shader(mut self, stage_idx: usize, shader_module: ShaderModule) -> Self {
+      Self::check_stage_idx(stage_idx);
+      self.put_info_unchecked(stage_idx, vk::PipelineShaderStageCreateInfo {
          module: shader_module,
          p_name: SHADER_ENTRY_FUNCTION_NAME.as_ptr(),
          stage: vk::ShaderStageFlags::VERTEX,
@@ -77,10 +89,15 @@ impl<'a> VulkanShaderBuilder<'a>{
       self
    }
 
-   pub fn with_fragment_shader(mut self, stage_idx: usize, shader_spv_file: &mut Cursor<impl AsRef<[u8]>>) -> Self {
+   pub fn with_fragment_shader_file(self, stage_idx: usize, shader_spv_file: &mut Cursor<impl AsRef<[u8]>>) -> Self {
       Self::check_stage_idx(stage_idx);
       let shader_module = self.make_shader_module(shader_spv_file);
-      self.add_shader_stage_create_info(stage_idx, vk::PipelineShaderStageCreateInfo {
+      self.with_fragment_shader(stage_idx, shader_module)
+   }
+
+   pub fn with_fragment_shader(mut self, stage_idx: usize, shader_module: ShaderModule) -> Self {
+      Self::check_stage_idx(stage_idx);
+      self.put_info_unchecked(stage_idx, vk::PipelineShaderStageCreateInfo {
           s_type: vk::StructureType::PIPELINE_SHADER_STAGE_CREATE_INFO,
           module: shader_module,
           p_name: SHADER_ENTRY_FUNCTION_NAME.as_ptr(),
@@ -101,7 +118,7 @@ impl<'a> VulkanShaderBuilder<'a>{
       }
    }
 
-   fn add_shader_stage_create_info(&mut self, stage_idx: usize, info: vk::PipelineShaderStageCreateInfo) {
+   fn put_info_unchecked(&mut self, stage_idx: usize, info: vk::PipelineShaderStageCreateInfo) {
       self.shader_stage_create_infos[stage_idx] = info;
       self.n_stages = usize::max(self.n_stages, stage_idx + 1);
    }

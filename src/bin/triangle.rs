@@ -12,6 +12,7 @@ use std::mem::align_of;
 use crate::offset_of;
 use platform::gpu::vulkan_context::{VulkanContext, find_memorytype_index, record_submit_commandbuffer};
 use platform::gpu::vulkan_shader::VulkanShader;
+use platform::gpu::vulkan_vertices::VulkanVertices;
 use platform::gpu::VulkanDrop;
 
 #[derive(Clone, Debug, Copy)]
@@ -206,9 +207,9 @@ fn main() {
             .unwrap();
 
         let shader = VulkanShader::builder(&base.device)
-            .with_vertex_shader(0, &mut Cursor::new(
+            .with_vertex_shader_file(0, &mut Cursor::new(
                 &include_bytes!("../../shader/triangle/vert.spv")[..]))
-            .with_fragment_shader(1, &mut Cursor::new(
+            .with_fragment_shader_file(1, &mut Cursor::new(
                 &include_bytes!("../../shader/triangle/frag.spv")[..]))
             .build();
 
@@ -218,33 +219,11 @@ fn main() {
             .create_pipeline_layout(&layout_create_info, None)
             .unwrap();
 
-        let vertex_input_binding_descriptions = [vk::VertexInputBindingDescription {
-            binding: 0,
-            stride: mem::size_of::<Vertex>() as u32,
-            input_rate: vk::VertexInputRate::VERTEX,
-        }];
-        let vertex_input_attribute_descriptions = [
-            vk::VertexInputAttributeDescription {
-                location: 0,
-                binding: 0,
-                format: vk::Format::R32G32B32A32_SFLOAT,
-                offset: offset_of!(Vertex, pos) as u32,
-            },
-            vk::VertexInputAttributeDescription {
-                location: 1,
-                binding: 0,
-                format: vk::Format::R32G32B32A32_SFLOAT,
-                offset: offset_of!(Vertex, color) as u32,
-            },
-        ];
-
-        let vertex_input_state_info = vk::PipelineVertexInputStateCreateInfo::builder()
-            .vertex_attribute_descriptions(&vertex_input_attribute_descriptions)
-            .vertex_binding_descriptions(&vertex_input_binding_descriptions);
-        let vertex_input_assembly_state_info = vk::PipelineInputAssemblyStateCreateInfo {
-            topology: vk::PrimitiveTopology::TRIANGLE_LIST,
-            ..Default::default()
-        };
+        let vertices = VulkanVertices::<Vertex>::new_vertex_data()
+                .with_topology(vk::PrimitiveTopology::TRIANGLE_LIST)
+                .add_vec4_attribute(offset_of!(Vertex, pos) as u32)
+                .add_vec4_attribute(offset_of!(Vertex, color) as u32);
+        
         let viewports = [vk::Viewport {
             x: 0.0,
             y: 0.0,
@@ -304,8 +283,8 @@ fn main() {
 
         let graphic_pipeline_info = vk::GraphicsPipelineCreateInfo::builder()
             .stages(shader.shader_stage_create_infos())
-            .vertex_input_state(&vertex_input_state_info)
-            .input_assembly_state(&vertex_input_assembly_state_info)
+            .vertex_input_state(&vertices.get_vertex_input_state())
+            .input_assembly_state(&vertices.get_input_assembly_state())
             .viewport_state(&viewport_state_info)
             .rasterization_state(&rasterization_info)
             .multisample_state(&multisample_state_info)
