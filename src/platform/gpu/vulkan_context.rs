@@ -306,10 +306,11 @@ impl VulkanContext {
                #[cfg(any(target_os = "macos", target_os = "ios"))]
                KhrPortabilitySubsetFn::name().as_ptr(),
            ];
-           let features = vk::PhysicalDeviceFeatures {
-               shader_clip_distance: 1,
-               ..Default::default()
-           };
+           let features = vk::PhysicalDeviceFeatures::builder()
+                .shader_clip_distance(true)
+                .sparse_binding(true)
+                .sparse_residency_buffer(true)
+                .build();
            let priorities = [1.0];
 
            let queue_info = vk::DeviceQueueCreateInfo::builder()
